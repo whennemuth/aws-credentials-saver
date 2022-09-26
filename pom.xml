@@ -1,0 +1,138 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>wrh</groupId>
+  <artifactId>AwsCredential</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>AwsCredential</name>
+  <description>Manage temporary credentials downloaded from federated login with aws account by moving them out of default profile into named profile</description>
+  <packaging>jar</packaging>
+  
+  <build>
+    <finalName>aws-credentials</finalName>
+  	<plugins>
+  		<plugin>
+  			<groupId>org.apache.maven.plugins</groupId>
+  			<artifactId>maven-compiler-plugin</artifactId>
+  			<version>3.8.0</version>
+	        <configuration>
+	          <source>11</source>
+              <target>11</target>
+	          <encoding>UTF-8</encoding>
+	          <forceJavacCompilerUse>true</forceJavacCompilerUse>
+	        </configuration>
+  		</plugin>
+  		<!-- Need the following 2 plugins when using junit5 -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>2.22.0</version>
+        </plugin>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>2.22.0</version>
+        </plugin>
+  		<plugin>
+  			<!--
+  			NOTE: We are "shading" the build artifact, the jar file. Shading, among other things, is a way
+  			of creating an "Uber jar" or "Fat jar", which is a jar file wraps not only its own classes/resources,
+  			but also all of its dependency jars. Useful for distributing the jar up to lambda as a single
+  			artifact and not have to figure out how to make lambda supply all the dependency support. 
+  			-->
+  			<groupId>org.apache.maven.plugins</groupId>
+  			<artifactId>maven-shade-plugin</artifactId>
+  			<version>3.4.0</version>
+	        <executions>
+	          <execution>
+	            <phase>package</phase>
+	            <goals>
+	              <goal>shade</goal>
+	            </goals>
+                <configuration>
+                	<!-- Make this an executable jar (include a manifest with a declaration for the main class) -->
+                    <transformers> 
+                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"> 
+                            <mainClass>
+                                aws.credentials.Main
+                            </mainClass> 
+                        </transformer> 
+                    </transformers> 
+                    <createDependencyReducedPom>
+                        false
+                    </createDependencyReducedPom>     
+                </configuration> 
+	          </execution>
+	        </executions>
+  		</plugin>
+  	</plugins>
+  </build>
+
+  <dependencyManagement>
+  	<dependencies>
+		<!-- 
+		NOTE: 
+			We are importing a bom (Bill of Materials) file from amazon of a specific version, which
+			is analagous to a "static include" where the imported pom file is injected here. Any dependencies that 
+			are declared outside the dependency management block that have a match in the imported pom file
+			are replaced with the match at the common version. This is a way to import multiple com.amazonaws
+			dependendencies while ensuring that they all have cross-compatibility with respect to version.
+		NOTE:
+			Those dependencies below that do have an explicit version of their own declared are NOT managed
+			dependencies. That is, they are not included in the pom imported by the bom.
+		 -->
+		<!-- https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk -->
+	    <dependency>
+	      <groupId>software.amazon.awssdk</groupId>
+	      <artifactId>bom</artifactId>
+	      <version>2.17.276</version>
+	      <type>pom</type>
+	      <scope>import</scope>
+	    </dependency>
+	    <!--
+        <dependency>
+          <groupId>org.apache.logging.log4j</groupId>
+          <artifactId>log4j-bom</artifactId>
+          <version>2.14.1</version>
+          <scope>import</scope>
+          <type>pom</type>
+       </dependency>
+       -->
+  	</dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+	  <!-- Non-managed dependencies -->
+	  <dependency>
+	  	<groupId>com.google.jimfs</groupId>
+	  	<artifactId>jimfs</artifactId>
+	  	<version>1.2</version>
+	  	<scope>test</scope>
+	  </dependency>
+		<dependency>
+		    <groupId>org.junit.jupiter</groupId>
+		    <artifactId>junit-jupiter-engine</artifactId>
+		    <version>5.4.0</version>
+		    <scope>test</scope>
+		</dependency>
+	  
+	  <!-- Managed dependencies from the bom(s) -->
+	  <dependency>
+	     <groupId>software.amazon.awssdk</groupId>
+	     <artifactId>sts</artifactId>
+	  </dependency>
+      <dependency>
+		 <groupId>software.amazon.awssdk</groupId>
+		 <artifactId>apache-client</artifactId>
+      </dependency>
+      <!--
+      <dependency>
+         <groupId>org.apache.logging.log4j</groupId>
+         <artifactId>log4j-api</artifactId>
+      </dependency>
+      <dependency>
+         <groupId>org.apache.logging.log4j</groupId>
+         <artifactId>log4j-core</artifactId>
+      </dependency>
+	  -->
+  </dependencies>
+</project>
