@@ -1,4 +1,4 @@
-## AWS Credentials
+## AWS Credentials Saver
 
 This is an application that is run as a background process to monitor for fresh downloads of a set of credentials to a file.
 If a download is detected, the new credentials are analyzed for a match among a known set of named profiles.

@@ -8,6 +8,8 @@ import java.util.ListIterator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import aws.credentials.file.CredentialsFile.Type;
+import aws.credentials.util.BasicNameValuePair;
 import aws.credentials.util.NameValuePair;
 import aws.credentials.util.Utils;
 
@@ -18,60 +20,41 @@ import aws.credentials.util.Utils;
  * @author wrh
  *
  */
-public class NamedProfile {
+public class NamedProfile implements Cloneable {
 
 	private List<String> rawTextLines = new ArrayList<String>();
 	private NamedProfileHeader header;
 	private Set<NameValuePairProfileDecorator> members = new HashSet<NameValuePairProfileDecorator>();
 	private List<String> other = new ArrayList<String>();
+	private Type credfileType = Type.CREDENTIALS;
 
-	public NamedProfile(String rawText) {
+	public NamedProfile(String rawText, Type credfileType) {
 		if(rawText != null) {
 			this.rawTextLines.addAll(Utils.readLines(rawText));
 		}
+		this.credfileType = credfileType;
 		initialize();
 	}
 	
-	public NamedProfile(List<String> rawTextLines) {
+	public NamedProfile(List<String> rawTextLines, Type credfileType) {
 		if(rawTextLines != null) {
 			this.rawTextLines.addAll(rawTextLines);
 		}
+		this.credfileType = credfileType;
 		initialize();
-	}
-	
-	/**
-	 * Update this named profile with all of the name/value pairs of another named profile, AND change to the new name too.
-	 * @param np
-	 */
-	public void swapWith(NamedProfile np) {
-		this.rawTextLines.clear();
-		this.rawTextLines.addAll(np.rawTextLines);
-		initialize();
-		// In case the profile name for np was reset since its raw text lines were loaded (Is the only non-readonly field).
-		this.setProfileName(np.getName());
-	}
-	
-	/**
-	 * Update this named profile with all of the name/value pairs of another named profile, BUT leave the name of the profile unchanged.
-	 * @param np
-	 */
-	public void updateWith(NamedProfile np) {
-		this.rawTextLines.clear();
-		this.rawTextLines.addAll(np.rawTextLines);
-		initialize(header.toString());
 	}
 	
 	private void initialize() {
-		initialize(null);
+		initialize(null, null);
 	}
 		
-	private void initialize(String newHeader) {
+	private void initialize(String newHeader, NamedProfile lastInitialized) {
 		members.clear();
 		other.clear();
 		for (ListIterator<String> iterator = rawTextLines.listIterator(); iterator.hasNext();) {
 			String line = (String) iterator.next();			
 			NameValuePairProfileDecorator nvp;
-			NamedProfileHeader headerTest = new NamedProfileHeader(line);
+			NamedProfileHeader headerTest = new NamedProfileHeader(line, credfileType);
 			if(headerTest.isHeader()) {
 				if(newHeader == null) {
 					if(header == null) {
@@ -82,7 +65,7 @@ public class NamedProfile {
 					}
 				}
 				else {
-					NamedProfileHeader nph = new NamedProfileHeader(newHeader);
+					NamedProfileHeader nph = new NamedProfileHeader(newHeader, credfileType);
 					header = nph;
 					iterator.set(nph.toString());
 				}
@@ -102,6 +85,57 @@ public class NamedProfile {
 				}
 			}
 		}
+		
+		/**
+		 * If the profile being updated had a region and/or output and the updating profile does not, restore the old region and/or output
+		 */
+		if(lastInitialized != null) {
+			reclaimMember(lastInitialized, NamedProfileElement.OUTPUT);
+			reclaimMember(lastInitialized, NamedProfileElement.REGION);
+		}
+	}
+	
+	/**
+	 * Take any 
+	 * @param reclaimFrom
+	 * @param npe
+	 */
+	private void reclaimMember(NamedProfile reclaimFrom, NamedProfileElement npe) {
+		NameValuePairProfileDecorator nvp = null;
+		if(reclaimFrom.hasMember(npe) && this.hasMember(npe) == false) {
+			nvp = (NameValuePairProfileDecorator) reclaimFrom.getMember(npe);
+			this.setMember(nvp);
+		}		
+	}
+	
+	/**
+	 * Update this named profile with all of the name/value pairs of another named profile, AND change to the new name too.
+	 * @param np
+	 */
+	public void swapWith(NamedProfile np) {
+		this.rawTextLines.clear();
+		this.rawTextLines.addAll(np.rawTextLines);
+		initialize();
+		// In case the profile name for np was reset since its raw text lines were loaded (Is the only non-readonly field).
+		this.setProfileName(np.getName());
+	}
+	
+	/**
+	 * Update this named profile with all of the name/value pairs of another named profile, BUT leave the name of the profile unchanged.
+	 * @param np
+	 * @throws Exception 
+	 */
+	public void updateWith(NamedProfile np) {
+		NamedProfile preUpdated;
+		try {
+			preUpdated = (NamedProfile) this.clone();
+		} 
+		catch (CloneNotSupportedException e) {
+			throw new RuntimeException(e);
+		}
+		this.rawTextLines.clear();
+		this.rawTextLines.addAll(np.rawTextLines);
+		initialize(header.toString(), preUpdated);
 	}
 	
 	/**
@@ -114,11 +148,11 @@ public class NamedProfile {
 			makeDefault();
 		}
 		else {
-			this.header = new NamedProfileHeader(String.format("[Profile %s]", profileName));
+			this.header = new NamedProfileHeader(String.format("[%s]", profileName), credfileType);
 		}
 		for (ListIterator<String> iterator = rawTextLines.listIterator(); iterator.hasNext();) {
 			String line = iterator.next();
-			if(new NamedProfileHeader(line).isHeader()) {
+			if(new NamedProfileHeader(line, credfileType).isHeader()) {
 				iterator.set(this.header.toString());
 				break;
 			}			
@@ -126,7 +160,7 @@ public class NamedProfile {
 	}
 	
 	public void makeDefault() {
-		this.header = new NamedProfileHeader("[default]");
+		this.header = new NamedProfileHeader("[default]", credfileType);
 	}
 	
 	/**
@@ -163,6 +197,50 @@ public class NamedProfile {
 		}
 		return null;
 	}
+	
+	/**
+	 * Set the value of a profile member to something new if it exists, else add the member altogether.
+	 * 
+	 * @param member
+	 */
+	public void setMember(NameValuePairProfileDecorator member) {
+		try {
+			for(NameValuePairProfileDecorator nvp : members) {
+				if(nvp.getType().equals(member.getType())) {
+					nvp.initialize(member);
+					return;
+				}
+			}
+			members.add(member);			
+		}
+		finally {
+			setRawTextLine(member);
+		}		
+	}
+	
+	/**
+	 * Make sure the raw text entries have a line of raw text that reflect a named profile a NamedProfileElement enum as specified by member.
+	 */
+	private void setRawTextLine(NameValuePairProfileDecorator member) {
+		for (ListIterator<String> iterator = rawTextLines.listIterator(); iterator.hasNext();) {
+			String line = (String) iterator.next();
+			BasicNameValuePair nvp = new BasicNameValuePair(line);
+			if(member.is(nvp.getName())) {
+				iterator.set(String.format("%s = %s", member.getName(), member.getValue()));
+				return;
+			}
+		}
+		if(member.is("region") || member.is("output")) {
+			// Add region and output entries at the beginning of the set, just below the profile header.
+			rawTextLines.add(1, String.format("%s = %s", member.getName(), member.getValue()));
+		}
+		else {
+			// Append entries of other types to the end of the set.
+			rawTextLines.add(String.format("%s = %s", member.getName(), member.getValue()));
+		}
+		
+	}
+
 	public String getMemberValue(NamedProfileElement element) {
 		NameValuePair member = getMember(element);
 		if(member == null) {
@@ -266,6 +344,11 @@ public class NamedProfile {
 			if( ! other.getMember(nvp.getType()).equals(nvp)) return false;
 		}
 		return true;		
+	}
+	
+	@Override
+	protected Object clone() throws CloneNotSupportedException {
+		return new NamedProfile(rawTextLines, credfileType);
 	}
 
 	@Override

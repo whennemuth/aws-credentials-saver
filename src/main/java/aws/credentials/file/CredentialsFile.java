@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent.Kind;
 import java.nio.file.WatchEvent.Modifier;
@@ -32,19 +33,22 @@ public class CredentialsFile implements Watchable {
 	private List<String> rawTextLines = new ArrayList<String>();
 	private Path credentialsFile;
 	private LinkedHashSet<NamedProfile> namedProfiles = new LinkedHashSet<NamedProfile>();
-
-	public CredentialsFile(String rawText) {
-		this.rawTextLines.addAll(Utils.readLines(rawText));
-		initialize();
-	}
+	private Type type;
 	
 	public CredentialsFile(Path credentialsFile) {
 		this.credentialsFile = credentialsFile;
 		this.rawTextLines.addAll(Utils.readLines(this.credentialsFile));
+		this.type = Type.resolve(credentialsFile);
+		initialize();
+	}
+
+	public CredentialsFile(String rawText, Type type) {
+		this.rawTextLines.addAll(Utils.readLines(rawText));
+		this.type = type;
 		initialize();
 	}
 	
-	public CredentialsFile(InputStream in) {
+	public CredentialsFile(InputStream in, Type type) {
 		this.rawTextLines.addAll(Utils.readLines(in));
 		initialize();
 	}
@@ -54,7 +58,7 @@ public class CredentialsFile implements Watchable {
 		for (Iterator<String> iterator = rawTextLines.iterator(); iterator.hasNext();) {
 			String line = (String) iterator.next();
 			if( ! line.isBlank()) {
-				if(new NamedProfileHeader(line).isHeader()) {
+				if(new NamedProfileHeader(line, type).isHeader()) {
 					if( ! namedProfileLines.isEmpty()) {
 						addNamedProfile(namedProfileLines);
 						namedProfileLines.clear();
@@ -74,7 +78,7 @@ public class CredentialsFile implements Watchable {
 	}
 	
 	public boolean addNamedProfile(List<String> namedProfileLines) {
-		return addNamedProfile(new NamedProfile(namedProfileLines));
+		return addNamedProfile(new NamedProfile(namedProfileLines, type));
 	}
 	
 	public boolean addNamedProfile(NamedProfile np) {
@@ -162,7 +166,7 @@ public class CredentialsFile implements Watchable {
 	}
 	
 	public void update(NamedProfile namedProfile) {
-		replace(namedProfile.getName(), namedProfile);
+		change(namedProfile.getName(), namedProfile, false);
 	}
 
 	public void update(String profileName, NamedProfile namedProfile) {
@@ -210,5 +214,32 @@ public class CredentialsFile implements Watchable {
 	public WatchKey register(WatchService watcher, Kind<?>... events) throws IOException {
 		return credentialsFile.register(watcher, events);
 	}
+	
+	public Type getType() {
+		return type;
+	}
 
+	/**
+	 * The type of credentials file is important to know because named profile header conventions are different for config vs credentials files.
+	 * See: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html#cli-configure-profiles-create
+	 * @author wrh
+	 *
+	 */
+	public static enum Type {
+		CONFIG, CREDENTIALS;
+		public static Type resolve(Path file) {
+			if(Files.isRegularFile(file)) {
+				if(file.getFileName().toString().equals("config")) {
+					return CONFIG;
+				}
+			}
+			return CREDENTIALS;
+		}
+		public static Type resolve(String filename) {
+			return "config".equalsIgnoreCase(filename) ? CONFIG : CREDENTIALS;
+		}
+		public boolean is(String name) {
+			return this.name().equalsIgnoreCase(name);
+		}
+	};
 }

@@ -1,4 +1,4 @@
-[Profile myprofile]
+[myprofile]
 aws_access_key_id = ASIA3GU5SOU7YZ5KURO4
 
 some junk

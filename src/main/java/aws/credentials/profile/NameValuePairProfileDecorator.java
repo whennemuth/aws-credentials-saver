@@ -15,6 +15,10 @@ public abstract class NameValuePairProfileDecorator implements NameValuePair {
 	protected NameValuePair nvp;
 	
 	public NameValuePairProfileDecorator(NameValuePair nvp) {
+		initialize(nvp);
+	}
+	
+	public void initialize(NameValuePair nvp) {
 		this.nvp = nvp;
 	}
 	
@@ -35,7 +39,7 @@ public abstract class NameValuePairProfileDecorator implements NameValuePair {
 	@Override
 	public boolean is(String name) {
 		if(isValid()) {
-			if(getName().equals(name)) {
+			if(getName().equalsIgnoreCase(name)) {
 				return true;
 			}
 		}

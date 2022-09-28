@@ -6,6 +6,13 @@ import aws.credentials.credential.AwsSessionToken;
 import aws.credentials.credential.Output;
 import aws.credentials.credential.Region;
 
+/**
+ * This enumeration defines the 5 basic credential settings of a named profile.
+ * Included are static methods for getting instances of a named profile object whose getType methods would return one of the members of this enumeration.
+ * 
+ * @author wrh
+ *
+ */
 public enum NamedProfileElement {
 	AWS_ACCESS_KEY_ID("id", AwsAccessKeyId.class),
 	AWS_SECRET_ACCESS_KEY("key", AwsSecretAccessKey.class),

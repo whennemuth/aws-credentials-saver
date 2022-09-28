@@ -1,8 +1,10 @@
 package aws.credentials.profile;
 
+import aws.credentials.file.CredentialsFile.Type;
+
 /**
  * This class represents the bracketed name for a named profile.
- * Examples: "[profile myprofile]", "[default]"
+ * Examples: "[profile myprofile]", "[myprofile]", "[default]"
  * 
  * @author wrh
  *
@@ -12,8 +14,10 @@ public class NamedProfileHeader {
 	private String header;
 	private String name;
 	private boolean _default;
+	private Type credfileType = Type.CREDENTIALS;
 	
-	public NamedProfileHeader(String header) {
+	public NamedProfileHeader(String header, Type credfileType) {
+		this.credfileType = credfileType;
 		if(header != null) {
 			this.header = header.trim();
 			if(this.header.matches("^\\[.*\\]$")) {
@@ -26,10 +30,20 @@ public class NamedProfileHeader {
 					String[] parts = name.split("\\s+");
 					if(parts.length > 1) {
 						name = parts[1];
-					}				
+					}
+					if(this.credfileType.equals(Type.CONFIG)) {
+						this.header = String.format("[profile %s]", name);
+					}
+					else {
+						this.header = String.format("[%s]", name);
+					}
 				}				
 			}
 		}
+	}
+	
+	private NamedProfileHeader(String header) {
+		this(header, Type.CREDENTIALS);
 	}
 	
 	public boolean isHeader() {
@@ -48,8 +62,6 @@ public class NamedProfileHeader {
 		return new NamedProfileHeader(profileName).isDefault();
 	}
 	
-	
-
 	@Override
 	public String toString() {
 		return header;

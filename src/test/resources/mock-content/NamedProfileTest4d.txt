@@ -1,0 +1,5 @@
+[NewProfile]
+aws_access_key_id = ASIA3GU5SOU72FMV2SHP
+aws_secret_access_key = kScL7FoUb5giRpQ58LhRvd3WIhqtQzuVXO8inYXB
+extra_new_value1 = apples
+extra_new_value2 = oranges
